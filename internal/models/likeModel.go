@@ -2,11 +2,10 @@ package models
 
 import "gorm.io/gorm"
 
-type Comment struct {
+type Like struct {
     gorm.Model
-	Comment string `json:"comment"`
-    UserID uint `json:"user_id"`
-    BlogID uint `json:"blog_id"`
+    UserID uint `json:"user_id"` // Foreign key untuk User
+    BlogID uint `json:"blog_id"` // Foreign key untuk Blog
 
     User User `gorm:"foreignKey:UserID;references:ID"`
     Blog Blog `gorm:"foreignKey:BlogID;references:ID"`

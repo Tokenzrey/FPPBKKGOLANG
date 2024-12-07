@@ -11,7 +11,7 @@
 
 ### Steps to follow
 1. Clone the repo
-2. Run the command `go mod download`
+2. Run the command `go mod download`v
 3. Rename the .env.example file to .env 
 4. Create a database in postgres 
 5. Change the DNS value in .env file 

@@ -7,5 +7,6 @@ type User struct {
 	Name     string `json:"name"`
 	Email    string `json:"email" gorm:"unique;not null"`
 	Password string `json:"-"`
-	Posts    []Post
+	TanggalLahir string `json:"tanggal_lahir"`
+	Biografi string `json:"biografi"`
 }
