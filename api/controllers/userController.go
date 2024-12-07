@@ -3,13 +3,13 @@ package controllers
 import (
 	"net/http"
 	"os"
-	"strconv"
+	"strings"
 	"time"
 
+	"github.com/Tokenzrey/FPPBKKGOLANG/api/middleware"
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/helpers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/models"
-	"github.com/Tokenzrey/FPPBKKGOLANG/internal/pagination"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/validations"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -17,75 +17,134 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-// Signup creates a new user
+// Signup handles user registration
+// @Description Registers a new user with detailed information (name, email, password, tanggal_lahir, biografi).
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param user body object{ name=string, email=string, password=string, tanggal_lahir=string, biografi=string } true "User input"
+// @Success 200 {object} object{status=string, data=models.User, message=string}
+// @Failure 400 {object} object{status=string, message=string}
+// @Failure 422 {object} object{status=string, message=string}
+// @Failure 500 {object} object{status=string, message=string}
+// @Router /signup [post]
 func Signup(c *gin.Context) {
+	// Define user input structure
 	var userInput struct {
-		Name     string `json:"name" binding:"required,min=2,max=50"`
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required,min=6"`
+		Name         string `json:"name" binding:"required,min=2,max=50"`    // Minimum 2 characters, maximum 50
+		Email        string `json:"email" binding:"required,email"`          // Valid email address required
+		Password     string `json:"password" binding:"required,min=6"`       // Minimum 6 characters
+		TanggalLahir string `json:"tanggal_lahir" binding:"required,date"`   // Date format required
+		Biografi     string `json:"biografi" binding:"required,max=500"`     // Maximum 500 characters
 	}
 
+	// Bind and validate JSON input
 	if err := c.ShouldBindJSON(&userInput); err != nil {
 		if errs, ok := err.(validator.ValidationErrors); ok {
-			validationErrors := validations.FormatValidationErrors(errs)
-			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+validationErrors["Email"])
+			// Gabungkan semua pesan error dalam satu string
+			var errorMessage string
+			for _, e := range errs {
+				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
+			}
+			// Trim karakter terakhir
+			errorMessage = strings.TrimSpace(errorMessage)
+
+			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
 			return
 		}
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
 		return
 	}
 
+	// Check if the email already exists in the database
 	if !validations.IsUniqueValue("users", "email", userInput.Email) {
 		helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Email already exists")
 		return
 	}
 
+	// Hash the user's password before saving to the database
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(userInput.Password), bcrypt.DefaultCost)
 	if err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to hash password")
 		return
 	}
 
+	// Create a new user instance
 	user := models.User{
-		Name:     userInput.Name,
-		Email:    userInput.Email,
-		Password: string(hashedPassword),
+		Name:         userInput.Name,
+		Email:        userInput.Email,
+		Password:     string(hashedPassword),
+		TanggalLahir: userInput.TanggalLahir,
+		Biografi:     userInput.Biografi,
 	}
 
+	// Save the new user to the database
 	if err := initializers.DB.Create(&user).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create user")
 		return
 	}
 
-	helpers.SuccessResponse(c, user, "User created successfully")
-}
-
-// Login authenticates a user
-func Login(c *gin.Context) {
-	var userInput struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
+	// Prepare the response object excluding the password
+	userResponse := struct {
+		ID           uint   `json:"id"`
+		Name         string `json:"name"`
+		Email        string `json:"email"`
+		TanggalLahir string `json:"tanggal_lahir"`
+		Biografi     string `json:"biografi"`
+		CreatedAt    string `json:"created_at"`
+	}{
+		ID:           user.ID,
+		Name:         user.Name,
+		Email:        user.Email,
+		TanggalLahir: user.TanggalLahir,
+		Biografi:     user.Biografi,
 	}
 
+	// Respond with the created user details
+	helpers.SuccessResponse(c, userResponse, "User created successfully")
+}
+
+// Login authenticates a user and returns a JWT token
+// @Description Authenticates a user using email and password, then returns a JWT token for session management.
+// @Tags Authentication
+// @Accept json
+// @Produce json
+// @Param credentials body object{ email=string, password=string } true "User credentials"
+// @Success 200 {object} object{status=string, data=object{token=string}, message=string}
+// @Failure 400 {object} object{status=string, message=string}
+// @Failure 401 {object} object{status=string, message=string}
+// @Failure 500 {object} object{status=string, message=string}
+// @Router /login [post]
+func Login(c *gin.Context) {
+	// Define the structure for user input
+	var userInput struct {
+		Email    string `json:"email" binding:"required,email"` // Validate email format
+		Password string `json:"password" binding:"required"`    // Password is required
+	}
+
+	// Bind and validate JSON input
 	if err := c.ShouldBindJSON(&userInput); err != nil {
 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
 		return
 	}
 
+	// Find the user in the database using email
 	var user models.User
 	if err := initializers.DB.First(&user, "email = ?", userInput.Email).Error; err != nil || user.ID == 0 {
 		helpers.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
+	// Compare the provided password with the stored hashed password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(userInput.Password)); err != nil {
 		helpers.ErrorResponse(c, http.StatusUnauthorized, "Invalid email or password")
 		return
 	}
 
+	// Generate a JWT token for the authenticated user
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,
-		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
+		"sub": user.ID,                              // Subject (user ID)
+		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(), // Expiration (30 days)
 	})
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
 	if err != nil {
@@ -93,59 +152,91 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	c.SetSameSite(http.SameSiteLaxMode)
-	c.SetCookie("Authorization", tokenString, 3600*24*30, "", "", false, true)
-	helpers.SuccessResponse(c, gin.H{"token": tokenString}, "Login successful")
+	// Return the JWT token in the response
+	responseData := gin.H{
+		"token": tokenString,
+	}
+
+	// Success response with token
+	helpers.SuccessResponse(c, responseData, "Login successful")
 }
 
-// Logout removes user authentication
-func Logout(c *gin.Context) {
-	c.SetCookie("Authorization", "", 0, "", "", false, true)
-	helpers.SuccessResponse(c, nil, "Logout successful")
-}
-
-// GetUsers retrieves a list of users
-func GetUsers(c *gin.Context) {
-	var users []models.User
-
-	pageStr := c.DefaultQuery("page", "1")
-	page, _ := strconv.Atoi(pageStr)
-
-	perPageStr := c.DefaultQuery("perPage", "5")
-	perPage, _ := strconv.Atoi(perPageStr)
-
-	result, err := pagination.Paginate(initializers.DB, page, perPage, nil, &users)
+// GetUserDetail retrieves user details from the database based on the JWT token.
+//
+// @Summary Retrieve user details
+// @Description Extracts user ID from the JWT token and retrieves corresponding user details from the database.
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Success 200 {object} object{status=string,data=object{id=uint,name=string,email=string,tanggal_lahir=string,biografi=string},message=string} "User retrieved successfully"
+// @Failure 401 {object} object{status=string,message=string} "Unauthorized: Token missing, invalid, or expired"
+// @Failure 404 {object} object{status=string,message=string} "User not found"
+// @Router /user/details [get]
+func GetUserDetail(c *gin.Context) {
+	// Extract user ID from the token
+	userID, err := middleware.GetUserIDFromToken(c)
 	if err != nil {
-		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve users")
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
 		return
 	}
 
-	helpers.SuccessResponse(c, result, "Users retrieved successfully")
-}
-
-// EditUser retrieves a single user by ID
-func EditUser(c *gin.Context) {
-	id := c.Param("id")
+	// Find the user in the database using the extracted user ID
 	var user models.User
-
-	if err := initializers.DB.First(&user, id).Error; err != nil {
+	if err := initializers.DB.First(&user, userID).Error; err != nil || user.ID == 0 {
 		helpers.ErrorResponse(c, http.StatusNotFound, "User not found")
 		return
 	}
 
-	helpers.SuccessResponse(c, user, "User retrieved successfully")
-}
-
-// UpdateUser modifies user details
-func UpdateUser(c *gin.Context) {
-	id := c.Param("id")
-	var userInput struct {
-		Name  string `json:"name" binding:"required,min=2,max=50"`
-		Email string `json:"email" binding:"required,email"`
+	// Prepare response data excluding sensitive fields
+	userResponse := gin.H{
+		"id":           user.ID,
+		"name":         user.Name,
+		"email":        user.Email,
+		"tanggal_lahir": user.TanggalLahir,
+		"biografi":     user.Biografi,
 	}
 
+	// Send successful response
+	helpers.SuccessResponse(c, userResponse, "User retrieved successfully")
+}
+
+// UpdateUser modifies user details in the database.
+//
+// @Summary Update user details
+// @Description Updates the user's name, email, tanggal_lahir, and biografi in the database.
+// @Tags User
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Param user body object{name=string,email=string,tanggal_lahir=string,biografi=string} true "Updated user data"
+// @Success 200 {object} object{status=string,data=models.User,message=string} "User updated successfully"
+// @Failure 400 {object} object{status=string,message=string} "Invalid input format"
+// @Failure 404 {object} object{status=string,message=string} "User not found"
+// @Failure 422 {object} object{status=string,message=string} "Validation failed or email already exists"
+// @Failure 500 {object} object{status=string,message=string} "Internal server error"
+// @Router /users/{id} [put]
+func UpdateUser(c *gin.Context) {
+	id, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
+	// Define the structure for input validation
+	var userInput struct {
+		Name         string `json:"name" binding:"required,min=2,max=50"`  // Name: Min 2, Max 50 characters
+		Email        string `json:"email" binding:"required,email"`       // Email: Valid email format
+		TanggalLahir string `json:"tanggal_lahir" binding:"required,date"` // Tanggal Lahir: Date format required
+		Biografi     string `json:"biografi" binding:"max=500"`           // Biografi: Max 500 characters
+	}
+
+	// Validate the input JSON
 	if err := c.ShouldBindJSON(&userInput); err != nil {
 		if errs, ok := err.(validator.ValidationErrors); ok {
+			// Format validation errors for clarity
 			validationErrors := validations.FormatValidationErrors(errs)
 			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+validationErrors["Email"])
 			return
@@ -154,24 +245,38 @@ func UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Find the user in the database
 	var user models.User
 	if err := initializers.DB.First(&user, id).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusNotFound, "User not found")
 		return
 	}
 
+	// Check if the new email is unique (if it's being updated)
 	if user.Email != userInput.Email && !validations.IsUniqueValue("users", "email", userInput.Email) {
 		helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Email already exists")
 		return
 	}
 
+	// Update user fields
 	user.Name = userInput.Name
 	user.Email = userInput.Email
+	user.TanggalLahir = userInput.TanggalLahir
+	user.Biografi = userInput.Biografi
 
+	// Save changes to the database
 	if err := initializers.DB.Save(&user).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to update user")
 		return
 	}
 
-	helpers.SuccessResponse(c, user, "User updated successfully")
+	// Respond with the updated user data
+	userResponse := gin.H{
+		"id":           user.ID,
+		"name":         user.Name,
+		"email":        user.Email,
+		"tanggal_lahir": user.TanggalLahir,
+		"biografi":     user.Biografi,
+	}
+	helpers.SuccessResponse(c, userResponse, "User updated successfully")
 }

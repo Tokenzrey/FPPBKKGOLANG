@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+
 	"github.com/Tokenzrey/FPPBKKGOLANG/api/router"
 	"github.com/Tokenzrey/FPPBKKGOLANG/config"
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
@@ -14,7 +15,7 @@ func init() {
 }
 
 func main() {
-	fmt.Println("Hello auth")
+	fmt.Println("BE Berhasil!")
 	r := gin.Default()
 	router.GetRoute(r)
 

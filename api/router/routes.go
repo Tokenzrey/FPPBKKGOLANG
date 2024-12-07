@@ -12,12 +12,10 @@ func GetRoute(r *gin.Engine) {
 	r.POST("/api/login", controllers.Login)
 
 	r.Use(middleware.RequireAuth)
-	r.POST("/api/logout", controllers.Logout)
 	userRouter := r.Group("/api/users")
 	{
-		userRouter.GET("/", controllers.GetUsers)
-		userRouter.GET("/:id/edit", controllers.EditUser)
-		userRouter.PUT("/:id/update", controllers.UpdateUser)
+		userRouter.GET("/", controllers.GetUserDetail)
+		userRouter.PUT("/update", controllers.UpdateUser)
 	}
 
 	// Comment routes
