@@ -1,7 +1,10 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -12,7 +15,6 @@ import (
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/models"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/pagination"
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
 )
 
@@ -168,75 +170,75 @@ func SearchBlogs(c *gin.Context) {
 	helpers.SuccessResponse(c, result, "Blogs retrieved successfully")
 }
 
-func PostBlog(c *gin.Context) {
-	// Define user input structure
-	userID, err := middleware.GetUserIDFromToken(c)
-	if err != nil {
-		// Respond with unauthorized if token is missing, invalid, or expired
-		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
-		return
-	}
+// func PostBlog(c *gin.Context) {
+// 	// Define user input structure
+// 	userID, err := middleware.GetUserIDFromToken(c)
+// 	if err != nil {
+// 		// Respond with unauthorized if token is missing, invalid, or expired
+// 		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+// 		return
+// 	}
 
-	var blogInput struct {
-		Judul     string `json:"judul" validate:"required"`
-		Content   string `json:"content" validate:"required" gorm:"type:TEXT"`
-		Thumbnail string `json:"thumbnail" validate:"required"`
-	}
+// 	var blogInput struct {
+// 		Judul     string `json:"judul" validate:"required"`
+// 		Content   string `json:"content" validate:"required" gorm:"type:TEXT"`
+// 		Thumbnail string `json:"thumbnail" validate:"required"`
+// 	}
 
-	// Bind JSON input
-	if err := c.ShouldBindJSON(&blogInput); err != nil {
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
-		return
-	}
+// 	// Bind JSON input
+// 	if err := c.ShouldBindJSON(&blogInput); err != nil {
+// 		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
+// 		return
+// 	}
 
-	// Validate input fields
-	if err := validate.Struct(blogInput); err != nil {
-		if errs, ok := err.(validator.ValidationErrors); ok {
-			// Concatenate all error messages into a single string
-			var errorMessage string
-			for _, e := range errs {
-				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
-			}
-			// Trim the trailing semicolon and space
-			errorMessage = strings.TrimSuffix(errorMessage, "; ")
+// 	// Validate input fields
+// 	if err := validate.Struct(blogInput); err != nil {
+// 		if errs, ok := err.(validator.ValidationErrors); ok {
+// 			// Concatenate all error messages into a single string
+// 			var errorMessage string
+// 			for _, e := range errs {
+// 				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
+// 			}
+// 			// Trim the trailing semicolon and space
+// 			errorMessage = strings.TrimSuffix(errorMessage, "; ")
 
-			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
-			return
-		}
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Validation error occurred")
-		return
-	}
+// 			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
+// 			return
+// 		}
+// 		helpers.ErrorResponse(c, http.StatusBadRequest, "Validation error occurred")
+// 		return
+// 	}
 
-	// Create a new user instance
-	blog := models.Blog{
-		Judul:     blogInput.Judul,
-		Content:   blogInput.Content,
-		Thumbnail: blogInput.Thumbnail,
-		UserID:    uint(userID),
-	}
+// 	// Create a new user instance
+// 	blog := models.Blog{
+// 		Judul:     blogInput.Judul,
+// 		Content:   blogInput.Content,
+// 		Thumbnail: blogInput.Thumbnail,
+// 		UserID:    uint(userID),
+// 	}
 
-	// Save the new user to the database
-	if err := initializers.DB.Create(&blog).Error; err != nil {
-		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create blog")
-		return
-	}
+// 	// Save the new user to the database
+// 	if err := initializers.DB.Create(&blog).Error; err != nil {
+// 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create blog")
+// 		return
+// 	}
 
-	// Prepare the response object excluding the password
-	userResponse := struct {
-		Judul     string    `json:"judul"`
-		Content   string    `json:"content" gorm:"type:TEXT"`
-		Thumbnail string    `json:"thumbnaill"`
-		CreatedAt time.Time `json:"created_at"`
-	}{
-		Judul:     blog.Judul,
-		Content:   blog.Content,
-		Thumbnail: blog.Thumbnail,
-		CreatedAt: blog.CreatedAt,
-	}
+// 	// Prepare the response object excluding the password
+// 	userResponse := struct {
+// 		Judul     string    `json:"judul"`
+// 		Content   string    `json:"content" gorm:"type:TEXT"`
+// 		Thumbnail string    `json:"thumbnaill"`
+// 		CreatedAt time.Time `json:"created_at"`
+// 	}{
+// 		Judul:     blog.Judul,
+// 		Content:   blog.Content,
+// 		Thumbnail: blog.Thumbnail,
+// 		CreatedAt: blog.CreatedAt,
+// 	}
 
-	// Respond with the created user details
-	helpers.SuccessResponse(c, userResponse, "Blog created successfully")
-}
+// 	// Respond with the created user details
+// 	helpers.SuccessResponse(c, userResponse, "Blog created successfully")
+// }
 
 func DeleteBlog(c *gin.Context) {
 	// Get the blog ID from the URL parameter
@@ -275,4 +277,66 @@ func DeleteBlog(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Blog deleted successfully"})
+}
+
+func PostBlog(c *gin.Context) {
+	userID, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
+	// Parse form data
+	judul := c.PostForm("judul")
+	content := c.PostForm("content")
+
+	// Check if the form contains an image file
+	file, err := c.FormFile("thumbnail")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Thumbnail image is required"})
+		return
+	}
+
+	// Validate the file size (max 3MB)
+	const maxFileSize = 3 * 1024 * 1024
+	if file.Size > maxFileSize {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds the 3MB limit"})
+		return
+	}
+
+	// Create an upload directory if it doesn't exist
+	uploadDir := "./uploads"
+	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		return
+	}
+
+	// Save the uploaded file with a unique filename
+	ext := filepath.Ext(file.Filename)
+	fileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext) // Unique file name
+	filePath := filepath.Join(uploadDir, fileName)
+
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save the file"})
+		return
+	}
+
+	// Save blog data to the database
+	blog := models.Blog{
+		Judul:     judul,
+		Content:   content,
+		Thumbnail: filePath, // Save the file path in the database
+		UserID:    uint(userID),
+	}
+
+	if err := initializers.DB.Create(&blog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create blog"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "Blog created successfully",
+		"blog":    blog,
+	})
 }
