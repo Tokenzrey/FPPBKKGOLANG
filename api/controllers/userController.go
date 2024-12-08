@@ -34,7 +34,7 @@ func Signup(c *gin.Context) {
 		Name         string `json:"name" binding:"required,min=2,max=50"`    // Minimum 2 characters, maximum 50
 		Email        string `json:"email" binding:"required,email"`          // Valid email address required
 		Password     string `json:"password" binding:"required,min=6"`       // Minimum 6 characters
-		TanggalLahir string `json:"tanggal_lahir" binding:"required,date"`   // Date format required
+		TanggalLahir string `json:"tanggal_lahir" binding:"required,datetime"`   // Date format required
 		Biografi     string `json:"biografi" binding:"required,max=500"`     // Maximum 500 characters
 	}
 
