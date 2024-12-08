@@ -3,6 +3,7 @@ package controllers
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Tokenzrey/FPPBKKGOLANG/api/middleware"
@@ -105,47 +106,24 @@ func GenerateLike(c *gin.Context) {
 }
 
 func ShowLike(c *gin.Context) {
-	// Extract user ID from the token
-	userID, errUser := middleware.GetUserIDFromToken(c)
-	if errUser != nil {
-		// Respond with unauthorized if token is missing, invalid, or expired
-		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
-		return
-	}
-
-	// Bind Blog ID from request
-	var blogLiked struct {
-		BlogID uint `json:"blog_id" binding:"required"`
-	}
-
-	// Bind and validate JSON input
-	if err := c.ShouldBindJSON(&blogLiked); err != nil {
-		if errs, ok := err.(validator.ValidationErrors); ok {
-			// Gabungkan semua pesan error dalam satu string
-			var errorMessage string
-			for _, e := range errs {
-				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
-			}
-			// Trim karakter terakhir
-			errorMessage = strings.TrimSpace(errorMessage)
-
-			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
-			return
-		}
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
+	// Get blog_id from path parameter
+	blogIDStr := c.Param("blog_id")
+	blogID, err := strconv.ParseUint(blogIDStr, 10, 64)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid blog_id")
 		return
 	}
 
 	// Check if blog exists
 	var blog models.Blog
-	if err := initializers.DB.First(&blog, blogLiked.BlogID).Error; err != nil {
+	if err := initializers.DB.First(&blog, blogID).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusNotFound, "Blog not found")
 		return
 	}
 
 	// count the likes for the specified blog
 	var likeCount int64
-	if err := initializers.DB.Model(&models.Like{}).Where("blog_id = ?", blogLiked.BlogID).Count(&likeCount).Error; err != nil {
+	if err := initializers.DB.Model(&models.Like{}).Where("blog_id = ? AND deleted_at IS NULL", blogID).Count(&likeCount).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Error Counting Likes")
 		return
 	}
@@ -153,13 +131,22 @@ func ShowLike(c *gin.Context) {
 	// check if user has liked the blog or not
 	var hasLiked bool
 
+	// Extract user ID from the token
+	userID, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
 	var likeExists models.Like
-	result := initializers.DB.Where("user_id = ? AND blog_id = ?", userID, blogLiked.BlogID).First(likeExists)
+	// helpers.ErrorResponse(c, http.StatusInternalServerError, "Error Counting Likes 123")
+	result := initializers.DB.Where("user_id = ? AND blog_id = ? AND deleted_at IS NULL", userID, blogID).First(&likeExists)
 	hasLiked = result.Error == nil
 
 	// returns JSON
 	c.JSON(http.StatusOK, gin.H{
-		"blog_id":       blogLiked.BlogID,
+		"blog_id":       blogID,
 		"likes_count":   likeCount,
 		"liked_by_user": hasLiked,
 	})
