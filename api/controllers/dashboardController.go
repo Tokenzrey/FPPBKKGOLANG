@@ -4,12 +4,15 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/Tokenzrey/FPPBKKGOLANG/api/middleware"
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/helpers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/models"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/pagination"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"gorm.io/gorm"
 )
 
@@ -165,3 +168,111 @@ func SearchBlogs(c *gin.Context) {
 	helpers.SuccessResponse(c, result, "Blogs retrieved successfully")
 }
 
+func PostBlog(c *gin.Context) {
+	// Define user input structure
+	userID, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
+	var blogInput struct {
+		Judul     string `json:"judul" validate:"required"`
+		Content   string `json:"content" validate:"required" gorm:"type:TEXT"`
+		Thumbnail string `json:"thumbnail" validate:"required"`
+	}
+
+	// Bind JSON input
+	if err := c.ShouldBindJSON(&blogInput); err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
+		return
+	}
+
+	// Validate input fields
+	if err := validate.Struct(blogInput); err != nil {
+		if errs, ok := err.(validator.ValidationErrors); ok {
+			// Concatenate all error messages into a single string
+			var errorMessage string
+			for _, e := range errs {
+				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
+			}
+			// Trim the trailing semicolon and space
+			errorMessage = strings.TrimSuffix(errorMessage, "; ")
+
+			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
+			return
+		}
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Validation error occurred")
+		return
+	}
+
+	// Create a new user instance
+	blog := models.Blog{
+		Judul:     blogInput.Judul,
+		Content:   blogInput.Content,
+		Thumbnail: blogInput.Thumbnail,
+		UserID:    uint(userID),
+	}
+
+	// Save the new user to the database
+	if err := initializers.DB.Create(&blog).Error; err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create blog")
+		return
+	}
+
+	// Prepare the response object excluding the password
+	userResponse := struct {
+		Judul     string    `json:"judul"`
+		Content   string    `json:"content" gorm:"type:TEXT"`
+		Thumbnail string    `json:"thumbnaill"`
+		CreatedAt time.Time `json:"created_at"`
+	}{
+		Judul:     blog.Judul,
+		Content:   blog.Content,
+		Thumbnail: blog.Thumbnail,
+		CreatedAt: blog.CreatedAt,
+	}
+
+	// Respond with the created user details
+	helpers.SuccessResponse(c, userResponse, "Blog created successfully")
+}
+
+func DeleteBlog(c *gin.Context) {
+	// Get the blog ID from the URL parameter
+	blogID := c.Param("id")
+
+	// Simulate fetching the current user ID (e.g., from a middleware or token)
+	// Replace this with actual logic to get the logged-in user's ID.
+	userID, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		// Respond with unauthorized if token is missing, invalid, or expired
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
+	// Find the blog in the database
+	var blog models.Blog
+	if err := initializers.DB.First(&blog, blogID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"error": "Blog not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find blog"})
+		return
+	}
+
+	// Check if the blog belongs to the current user
+	if blog.UserID != uint(userID) {
+		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to delete this blog"})
+		return
+	}
+
+	// Delete the blog
+	if err := initializers.DB.Delete(&blog).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete blog"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Blog deleted successfully"})
+}
