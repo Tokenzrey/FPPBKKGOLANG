@@ -3,6 +3,7 @@ package controllers
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/helpers"
@@ -28,8 +29,18 @@ import (
 // @Router /blogs [get]
 func GetBlogs(c *gin.Context) {
 	// Get query parameters for pagination and sorting
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("perPage", "10"))
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page <= 0 {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid page parameter")
+		return
+	}
+
+	perPage, err := strconv.Atoi(c.DefaultQuery("perPage", "10"))
+	if err != nil || perPage <= 0 || perPage > 100 {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid perPage parameter")
+		return
+	}
+
 	sort := c.DefaultQuery("sort", "") // Default: no sorting
 
 	// Validate sort parameter
@@ -90,9 +101,19 @@ func GetBlogs(c *gin.Context) {
 // @Router /blogs/search [get]
 func SearchBlogs(c *gin.Context) {
 	// Get query parameters for pagination and search
-	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
-	perPage, _ := strconv.Atoi(c.DefaultQuery("perPage", "10"))
-	search := c.Query("search")
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page <= 0 {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid page parameter")
+		return
+	}
+
+	perPage, err := strconv.Atoi(c.DefaultQuery("perPage", "10"))
+	if err != nil || perPage <= 0 || perPage > 100 {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid perPage parameter")
+		return
+	}
+
+	search := strings.TrimSpace(c.Query("search")) // Trim whitespace to handle empty input
 	filter := c.DefaultQuery("filter", "all")
 
 	// Validate filter parameter
@@ -107,26 +128,30 @@ func SearchBlogs(c *gin.Context) {
 
 	// Apply search logic based on the 'filter' query parameter
 	rawFunc := func(db *gorm.DB) *gorm.DB {
-		switch filter {
-		case "username":
-			// Search by username
-			return db.Joins("JOIN users ON users.id = blogs.user_id").
-				Where("users.name LIKE ?", "%"+search+"%").
-				Order("blogs.created_at DESC")
-		case "judul":
-			// Search by blog title
-			return db.Where("blogs.judul LIKE ?", "%"+search+"%").
-				Order("blogs.created_at DESC")
-		case "content":
-			// Search by blog content
-			return db.Where("blogs.content LIKE ?", "%"+search+"%").
-				Order("blogs.created_at DESC")
-		default:
-			// Search in all fields
-			return db.Joins("LEFT JOIN users ON users.id = blogs.user_id").
-				Where("users.name LIKE ? OR blogs.judul LIKE ? OR blogs.content LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%").
-				Order("blogs.created_at DESC")
+		// Base query
+		query := db.Order("blogs.created_at DESC")
+
+		// Add search conditions if search parameter is not empty
+		if search != "" {
+			switch filter {
+			case "username":
+				// Search by username
+				query = query.Joins("JOIN users ON users.id = blogs.user_id").
+					Where("users.name LIKE ?", "%"+search+"%")
+			case "judul":
+				// Search by blog title
+				query = query.Where("blogs.judul LIKE ?", "%"+search+"%")
+			case "content":
+				// Search by blog content
+				query = query.Where("blogs.content LIKE ?", "%"+search+"%")
+			default:
+				// Search in all fields
+				query = query.Joins("LEFT JOIN users ON users.id = blogs.user_id").
+					Where("users.name LIKE ? OR blogs.judul LIKE ? OR blogs.content LIKE ?", "%"+search+"%", "%"+search+"%", "%"+search+"%")
+			}
 		}
+
+		return query
 	}
 
 	// Perform pagination and query execution
@@ -139,3 +164,4 @@ func SearchBlogs(c *gin.Context) {
 	// Return paginated blog search results
 	helpers.SuccessResponse(c, result, "Blogs retrieved successfully")
 }
+
