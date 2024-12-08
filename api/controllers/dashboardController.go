@@ -244,8 +244,7 @@ func DeleteBlog(c *gin.Context) {
 	// Get the blog ID from the URL parameter
 	blogID := c.Param("id")
 
-	// Simulate fetching the current user ID (e.g., from a middleware or token)
-	// Replace this with actual logic to get the logged-in user's ID.
+	// Get the user ID from the token
 	userID, err := middleware.GetUserIDFromToken(c)
 	if err != nil {
 		// Respond with unauthorized if token is missing, invalid, or expired
@@ -257,32 +256,35 @@ func DeleteBlog(c *gin.Context) {
 	var blog models.Blog
 	if err := initializers.DB.First(&blog, blogID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, gin.H{"error": "Blog not found"})
+			// Blog not found
+			helpers.ErrorResponse(c, http.StatusNotFound, "Blog not found")
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to find blog"})
+		// General error finding the blog
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to find blog")
 		return
 	}
 
 	// Check if the blog belongs to the current user
 	if blog.UserID != uint(userID) {
-		c.JSON(http.StatusForbidden, gin.H{"error": "You are not authorized to delete this blog"})
+		helpers.ErrorResponse(c, http.StatusForbidden, "You are not authorized to delete this blog")
 		return
 	}
 
 	// Delete the blog
 	if err := initializers.DB.Delete(&blog).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete blog"})
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to delete blog")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"message": "Blog deleted successfully"})
+	// Respond with success
+	helpers.SuccessResponse(c, gin.H{"id": blog.ID}, "Blog deleted successfully")
 }
 
 func PostBlog(c *gin.Context) {
+	// Get the user ID from the token
 	userID, err := middleware.GetUserIDFromToken(c)
 	if err != nil {
-		// Respond with unauthorized if token is missing, invalid, or expired
 		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
 		return
 	}
@@ -291,34 +293,40 @@ func PostBlog(c *gin.Context) {
 	judul := c.PostForm("judul")
 	content := c.PostForm("content")
 
+	// Validate input fields
+	if judul == "" || content == "" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Judul and content are required")
+		return
+	}
+
 	// Check if the form contains an image file
 	file, err := c.FormFile("thumbnail")
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Thumbnail image is required"})
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Thumbnail image is required")
 		return
 	}
 
 	// Validate the file size (max 3MB)
 	const maxFileSize = 3 * 1024 * 1024
 	if file.Size > maxFileSize {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "File size exceeds the 3MB limit"})
+		helpers.ErrorResponse(c, http.StatusBadRequest, "File size exceeds the 3MB limit")
 		return
 	}
 
 	// Create an upload directory if it doesn't exist
 	uploadDir := "./uploads"
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create upload directory"})
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create upload directory")
 		return
 	}
 
 	// Save the uploaded file with a unique filename
 	ext := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext) // Unique file name
-	filePath := filepath.Join(fileName)
+	filePath := filepath.Join(uploadDir, fileName)             // Save to uploads directory
 
 	if err := c.SaveUploadedFile(file, filePath); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save the file"})
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to save the file")
 		return
 	}
 
@@ -326,17 +334,24 @@ func PostBlog(c *gin.Context) {
 	blog := models.Blog{
 		Judul:     judul,
 		Content:   content,
-		Thumbnail: filePath, // Save the file path in the database
+		Thumbnail: filePath, 
 		UserID:    uint(userID),
 	}
 
 	if err := initializers.DB.Create(&blog).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create blog"})
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to create blog")
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
+	// Respond with success
+	helpers.SuccessResponse(c, gin.H{
 		"message": "Blog created successfully",
-		"blog":    blog,
-	})
+		"blog": gin.H{
+			"id":       blog.ID,
+			"judul":    blog.Judul,
+			"content":  blog.Content,
+			"thumbnail": fmt.Sprintf("/uploads/%s", fileName), // Publicly accessible path
+		},
+	}, "Blog created successfully")
 }
+
