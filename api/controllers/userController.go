@@ -170,7 +170,7 @@ func Login(c *gin.Context) {
 
 	// Generate a JWT token for the authenticated user
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,                              // Subject (user ID)
+		"sub": user.ID,                                    // Subject (user ID)
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(), // Expiration (30 days)
 	})
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
@@ -218,11 +218,11 @@ func GetUserDetail(c *gin.Context) {
 
 	// Prepare response data excluding sensitive fields
 	userResponse := gin.H{
-		"id":           user.ID,
-		"name":         user.Name,
-		"email":        user.Email,
+		"id":            user.ID,
+		"name":          user.Name,
+		"email":         user.Email,
 		"tanggal_lahir": user.TanggalLahir,
-		"biografi":     user.Biografi,
+		"biografi":      user.Biografi,
 	}
 
 	// Send successful response
@@ -314,11 +314,11 @@ func UpdateUser(c *gin.Context) {
 
 	// Respond with the updated user data
 	userResponse := gin.H{
-		"id":           user.ID,
-		"name":         user.Name,
-		"email":        user.Email,
+		"id":            user.ID,
+		"name":          user.Name,
+		"email":         user.Email,
 		"tanggal_lahir": user.TanggalLahir,
-		"biografi":     user.Biografi,
+		"biografi":      user.Biografi,
 	}
 	helpers.SuccessResponse(c, userResponse, "User updated successfully")
 }
