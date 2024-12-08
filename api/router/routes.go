@@ -34,7 +34,7 @@ func GetRoute(r *gin.Engine) {
 			userRouter.PUT("/update", controllers.UpdateUser) // Update user details
 		}
 
-		blogsRouter := authRouter.Group("/api/blog")
+		blogsRouter := authRouter.Group("/api/blogs")
 		{
 			blogsRouter.POST("/", controllers.PostBlog)
 			blogsRouter.DELETE("/:id", controllers.DeleteBlog)
