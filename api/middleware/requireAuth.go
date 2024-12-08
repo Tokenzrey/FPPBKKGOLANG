@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
 	"github.com/Tokenzrey/FPPBKKGOLANG/internal/models"
@@ -26,7 +27,7 @@ func GetUserIDFromToken(c *gin.Context) (float64, error) {
 	}
 
 	// Ensure the token uses "Bearer" format
-	if len(authHeader) <= len("Bearer ") {
+	if !strings.HasPrefix(authHeader, "Bearer ") {
 		return 0, errors.New("invalid Authorization header format")
 	}
 	tokenStr := authHeader[len("Bearer "):]
