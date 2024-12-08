@@ -24,7 +24,7 @@ func GetRoute(r *gin.Engine) {
 	r.GET("/api/blogs/like/:blog_id", controllers.ShowLike)
 	r.POST("/comment", controllers.PostComment)
 	r.GET("/api/blogs/comment/:blog_id", controllers.ShowComments)
-
+	r.GET("/api/blog/:id", controllers.GetBlog)
 	// Routes requiring authentication
 	authRouter := r.Group("/")
 	authRouter.Use(middleware.RequireAuth)

@@ -328,9 +328,9 @@ func PostBlog(c *gin.Context) {
 	// Save the uploaded file with a unique filename
 	ext := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext) // Unique file name
-	filePath := filepath.Join(uploadDir, fileName)             // Save to uploads directory
+	// filePath := filepath.Join(uploadDir, fileName)             // Save to uploads directory
 
-	if err := c.SaveUploadedFile(file, filePath); err != nil {
+	if err := c.SaveUploadedFile(file, fileName); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to save the file")
 		return
 	}
@@ -339,7 +339,7 @@ func PostBlog(c *gin.Context) {
 	blog := models.Blog{
 		Judul:     judul,
 		Content:   content,
-		Thumbnail: filePath, 
+		Thumbnail: fileName,
 		UserID:    uint(userID),
 	}
 
@@ -352,11 +352,73 @@ func PostBlog(c *gin.Context) {
 	helpers.SuccessResponse(c, gin.H{
 		"message": "Blog created successfully",
 		"blog": gin.H{
-			"id":       blog.ID,
-			"judul":    blog.Judul,
-			"content":  blog.Content,
+			"id":        blog.ID,
+			"judul":     blog.Judul,
+			"content":   blog.Content,
 			"thumbnail": fmt.Sprintf("/uploads/%s", fileName), // Publicly accessible path
 		},
 	}, "Blog created successfully")
 }
 
+// GetBlogByID retrieves a blog post by its ID, including likes and comments.
+func GetBlog(c *gin.Context) {
+	// Get the Blog ID from the request parameters
+	blogID := c.Param("id")
+	if blogID == "" {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Blog ID is required")
+		return
+	}
+
+	// Retrieve the authenticated user ID from the token
+	userID, err := middleware.GetUserIDFromToken(c)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusUnauthorized, "Token missing, invalid, or expired")
+		return
+	}
+
+	// Retrieve the blog details
+	var blog models.Blog
+	if err := initializers.DB.Preload("User").First(&blog, blogID).Error; err != nil {
+		helpers.ErrorResponse(c, http.StatusNotFound, "Blog not found")
+		return
+	}
+
+	// Retrieve the number of likes for the blog
+	var likesCount int64
+	if err := initializers.DB.Model(&models.Like{}).Where("blog_id = ?", blogID).Count(&likesCount).Error; err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Error counting likes")
+		return
+	}
+
+	// Check if the user has already liked the blog
+	var hasLiked bool
+	if err := initializers.DB.Model(&models.Like{}).Where("user_id = ? AND blog_id = ?", userID, blogID).First(&models.Like{}).Error; err == nil {
+		hasLiked = true
+	}
+
+	// Retrieve comments for the blog
+	var comments []models.Comment
+	if err := initializers.DB.Where("blog_id = ?", blogID).Find(&comments).Error; err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Error fetching comments")
+		return
+	}
+
+	// Construct the response payload
+	response := gin.H{
+		"id":        blog.ID,
+		"title":     blog.Judul,
+		"content":   blog.Content,
+		"thumbnail": blog.Thumbnail,
+		"author": gin.H{
+			"name":  blog.User.Name,
+			"email": blog.User.Email,
+		},
+		"likes": gin.H{
+			"count":     likesCount,
+			"userLiked": hasLiked,
+		},
+		"comments": comments,
+	}
+
+	helpers.SuccessResponse(c, response, "Blog fetched successfully")
+}
