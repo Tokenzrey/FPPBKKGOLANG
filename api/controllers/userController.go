@@ -31,11 +31,11 @@ import (
 func Signup(c *gin.Context) {
 	// Define user input structure
 	var userInput struct {
-		Name         string `json:"name" binding:"required,min=2,max=50"`    // Minimum 2 characters, maximum 50
-		Email        string `json:"email" binding:"required,email"`          // Valid email address required
-		Password     string `json:"password" binding:"required,min=6"`       // Minimum 6 characters
-		TanggalLahir string `json:"tanggal_lahir" binding:"required,datetime"`   // Date format required
-		Biografi     string `json:"biografi" binding:"required,max=500"`     // Maximum 500 characters
+		Name         string `json:"name" validate:"required,min=2,max=50"`                 // Minimum 2 characters, maximum 50
+		Email        string `json:"email" validate:"required,email"`                       // Valid email address required
+		Password     string `json:"password" validate:"required,min=6"`                    // Minimum 6 characters
+		TanggalLahir string `json:"tanggal_lahir" validate:"required,datetime=2006-01-02"` // Date in `YYYY-MM-DD` format
+		Biografi     string `json:"biografi" validate:"required,max=500"`                  // Maximum 500 characters
 	}
 
 	// Bind and validate JSON input
@@ -143,7 +143,7 @@ func Login(c *gin.Context) {
 
 	// Generate a JWT token for the authenticated user
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"sub": user.ID,                              // Subject (user ID)
+		"sub": user.ID,                                    // Subject (user ID)
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(), // Expiration (30 days)
 	})
 	tokenString, err := token.SignedString([]byte(os.Getenv("SECRET")))
@@ -191,11 +191,11 @@ func GetUserDetail(c *gin.Context) {
 
 	// Prepare response data excluding sensitive fields
 	userResponse := gin.H{
-		"id":           user.ID,
-		"name":         user.Name,
-		"email":        user.Email,
+		"id":            user.ID,
+		"name":          user.Name,
+		"email":         user.Email,
 		"tanggal_lahir": user.TanggalLahir,
-		"biografi":     user.Biografi,
+		"biografi":      user.Biografi,
 	}
 
 	// Send successful response
@@ -227,10 +227,10 @@ func UpdateUser(c *gin.Context) {
 
 	// Define the structure for input validation
 	var userInput struct {
-		Name         string `json:"name" binding:"required,min=2,max=50"`  // Name: Min 2, Max 50 characters
-		Email        string `json:"email" binding:"required,email"`       // Email: Valid email format
-		TanggalLahir string `json:"tanggal_lahir" binding:"required,date"` // Tanggal Lahir: Date format required
-		Biografi     string `json:"biografi" binding:"max=500"`           // Biografi: Max 500 characters
+		Name         string `json:"name" validate:"required,min=2,max=50"`                 // Name: Min 2, Max 50 characters
+		Email        string `json:"email" validate:"required,email"`                       // Email: Valid email format
+		TanggalLahir string `json:"tanggal_lahir" validate:"required,datetime=2006-01-02"` // Tanggal Lahir: Date format required (e.g., YYYY-MM-DD)
+		Biografi     string `json:"biografi" validate:"omitempty,max=500"`                 // Biografi: Optional, Max 500 characters
 	}
 
 	// Validate the input JSON
@@ -272,11 +272,11 @@ func UpdateUser(c *gin.Context) {
 
 	// Respond with the updated user data
 	userResponse := gin.H{
-		"id":           user.ID,
-		"name":         user.Name,
-		"email":        user.Email,
+		"id":            user.ID,
+		"name":          user.Name,
+		"email":         user.Email,
 		"tanggal_lahir": user.TanggalLahir,
-		"biografi":     user.Biografi,
+		"biografi":      user.Biografi,
 	}
 	helpers.SuccessResponse(c, userResponse, "User updated successfully")
 }

@@ -2,6 +2,7 @@ package validations
 
 import (
 	"fmt"
+
 	"github.com/Tokenzrey/FPPBKKGOLANG/db/initializers"
 	"github.com/go-playground/validator/v10"
 )
@@ -16,7 +17,7 @@ func IsUniqueValue(tableName, fieldName, value string) bool {
 		return false
 	}
 
-	return count > 0
+	return count == 0
 }
 
 func IsExistValue(tableName, fieldName string, value interface{}) bool {
