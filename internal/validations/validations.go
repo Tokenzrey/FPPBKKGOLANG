@@ -17,7 +17,7 @@ func IsUniqueValue(tableName, fieldName, value string) bool {
 		return false
 	}
 
-	return count == 0
+	return count > 0
 }
 
 func IsExistValue(tableName, fieldName string, value interface{}) bool {
