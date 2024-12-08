@@ -315,7 +315,7 @@ func PostBlog(c *gin.Context) {
 	// Save the uploaded file with a unique filename
 	ext := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext) // Unique file name
-	filePath := filepath.Join(uploadDir, fileName)
+	filePath := filepath.Join(fileName)
 
 	if err := c.SaveUploadedFile(file, filePath); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save the file"})

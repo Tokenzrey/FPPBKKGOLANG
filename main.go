@@ -12,29 +12,31 @@ import (
 )
 
 func init() {
-    config.LoadEnvVariables()
-    initializers.ConnectDB()
+	config.LoadEnvVariables()
+	initializers.ConnectDB()
 }
 
 func main() {
-    fmt.Println("BE Berhasil!")
+	fmt.Println("BE Berhasil!")
 
-    // Inisialisasi router
-    r := gin.Default()
+	// Inisialisasi router
+	r := gin.Default()
 
-    // Middleware CORS: Mengizinkan semua origin
-    r.Use(cors.New(cors.Config{
-        AllowOrigins:     []string{"*"}, 
-        AllowMethods:     []string{"*"}, 
-        AllowHeaders:     []string{"*"},
-        ExposeHeaders:    []string{"*"}, 
-        AllowCredentials: false, //
-        MaxAge:           12 * time.Hour,
-    }))
+	r.Static("/uploads", "./uploads")
 
-    // Register routes
-    router.GetRoute(r)
+	// Middleware CORS: Mengizinkan semua origin
+	r.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"*"},
+		AllowHeaders:     []string{"*"},
+		ExposeHeaders:    []string{"*"},
+		AllowCredentials: false, //
+		MaxAge:           12 * time.Hour,
+	}))
 
-    // Jalankan server
-    r.Run()
+	// Register routes
+	router.GetRoute(r)
+
+	// Jalankan server
+	r.Run()
 }
