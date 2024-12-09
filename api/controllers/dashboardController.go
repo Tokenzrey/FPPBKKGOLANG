@@ -59,28 +59,28 @@ func GetBlogs(c *gin.Context) {
 
 	// Apply sorting logic based on the 'sort' query parameter
 	rawFunc := func(db *gorm.DB) *gorm.DB {
-		switch sort {
+	query := db.Preload("User") // Preload user details
+
+	switch sort {
 		case "likes":
-			// Join blogs with likes and count likes
-			return db.Joins("LEFT JOIN likes ON likes.blog_id = blogs.id").
-				Group("blogs.id").
-				Select("blogs.*, COUNT(likes.id) as like_count").
+			// Subquery for sorting by likes
+			return query.Select("blogs.*, (SELECT COUNT(*) FROM likes WHERE likes.blog_id = blogs.id) as like_count").
 				Order("like_count DESC")
 		case "comments":
-			// Join blogs with comments and count comments
-			return db.Joins("LEFT JOIN comments ON comments.blog_id = blogs.id").
-				Group("blogs.id").
-				Select("blogs.*, COUNT(comments.id) as comment_count").
+			// Subquery for sorting by comments
+			return query.Select("blogs.*, (SELECT COUNT(*) FROM comments WHERE comments.blog_id = blogs.id) as comment_count").
 				Order("comment_count DESC")
 		default:
 			// Default sorting by blog creation date
-			return db.Order("blogs.created_at DESC")
-		}
+			return query.Order("blogs.created_at DESC")
 	}
+}
 
 	// Perform pagination and query execution
 	result, err := pagination.Paginate(initializers.DB, page, perPage, rawFunc, &blogs)
 	if err != nil {
+		// Log the error for debugging
+		fmt.Printf("Error executing query: %v\n", err)
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve blogs")
 		return
 	}
@@ -88,6 +88,7 @@ func GetBlogs(c *gin.Context) {
 	// Return paginated blog list
 	helpers.SuccessResponse(c, result, "Blogs retrieved successfully")
 }
+
 
 // SearchBlogs retrieves a paginated list of blogs filtered by search query
 //
@@ -133,8 +134,8 @@ func SearchBlogs(c *gin.Context) {
 
 	// Apply search logic based on the 'filter' query parameter
 	rawFunc := func(db *gorm.DB) *gorm.DB {
-		// Base query
-		query := db.Order("blogs.created_at DESC")
+		// Base query with user details preloaded
+		query := db.Preload("User").Order("blogs.created_at DESC")
 
 		// Add search conditions if search parameter is not empty
 		if search != "" {
@@ -156,12 +157,15 @@ func SearchBlogs(c *gin.Context) {
 			}
 		}
 
+		// Return the modified query
 		return query
 	}
 
 	// Perform pagination and query execution
 	result, err := pagination.Paginate(initializers.DB, page, perPage, rawFunc, &blogs)
 	if err != nil {
+		// Log the error for debugging
+		fmt.Printf("Error executing query: %v\n", err)
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to retrieve blogs")
 		return
 	}
@@ -169,6 +173,7 @@ func SearchBlogs(c *gin.Context) {
 	// Return paginated blog search results
 	helpers.SuccessResponse(c, result, "Blogs retrieved successfully")
 }
+
 
 // func PostBlog(c *gin.Context) {
 // 	// Define user input structure
