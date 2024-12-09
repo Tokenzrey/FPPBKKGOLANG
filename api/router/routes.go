@@ -20,10 +20,6 @@ func GetRoute(r *gin.Engine) {
 	r.POST("/api/login", controllers.Login)             // User login
 	r.GET("/api/blogs", controllers.GetBlogs)           // Get paginated blogs
 	r.GET("/api/blogs/search", controllers.SearchBlogs) // Search blogs by query
-	r.POST("/like", controllers.GenerateLike)
-	r.GET("/api/blogs/like/:blog_id", controllers.ShowLike)
-	r.POST("/comment", controllers.PostComment)
-	r.GET("/api/blogs/comment/:blog_id", controllers.ShowComments)
 	r.GET("/api/blog/:id", controllers.GetBlog)
 	// Routes requiring authentication
 	authRouter := r.Group("/")
@@ -41,5 +37,9 @@ func GetRoute(r *gin.Engine) {
 			blogsRouter.POST("/", controllers.PostBlog)
 			blogsRouter.DELETE("/:id", controllers.DeleteBlog)
 		}
+		authRouter.POST("/like", controllers.GenerateLike)
+		authRouter.GET("/api/blogs/like/:blog_id", controllers.ShowLike)
+		authRouter.POST("/comment", controllers.PostComment)
+		authRouter.GET("/api/blogs/comment/:blog_id", controllers.ShowComments)
 	}
 }
