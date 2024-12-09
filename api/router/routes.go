@@ -21,7 +21,9 @@ func GetRoute(r *gin.Engine) {
 	r.GET("/api/blogs", controllers.GetBlogs)           // Get paginated blogs
 	r.GET("/api/blogs/search", controllers.SearchBlogs) // Search blogs by query
 	r.POST("/like", controllers.GenerateLike)
+	r.GET("/api/blogs/like/:blog_id", controllers.ShowLike)
 	r.POST("/comment", controllers.PostComment)
+	r.GET("/api/blogs/comment/:blog_id", controllers.ShowComments)
 
 	// Routes requiring authentication
 	authRouter := r.Group("/")

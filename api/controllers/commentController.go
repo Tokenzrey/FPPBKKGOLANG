@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -74,31 +75,17 @@ func PostComment(c *gin.Context) {
 }
 
 func ShowComments(c *gin.Context) {
-	var viewed_blog struct {
-		BlogID uint `json:"blog_id" binding:"required"`
-	}
-
-	// Bind and validate JSON input
-	if err := c.ShouldBindJSON(&viewed_blog); err != nil {
-		if errs, ok := err.(validator.ValidationErrors); ok {
-			// Gabungkan semua pesan error dalam satu string
-			var errorMessage string
-			for _, e := range errs {
-				errorMessage += e.Field() + ": " + e.ActualTag() + "; "
-			}
-			// Trim karakter terakhir
-			errorMessage = strings.TrimSpace(errorMessage)
-
-			helpers.ErrorResponse(c, http.StatusUnprocessableEntity, "Validation failed: "+errorMessage)
-			return
-		}
-		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid input format")
+	// Get blog_id from path parameter
+	blogIDStr := c.Param("blog_id")
+	blogID, err := strconv.ParseUint(blogIDStr, 10, 64)
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid blog_id")
 		return
 	}
 
 	// Check if blog exists
 	var blog models.Blog
-	if err := initializers.DB.First(&blog, viewed_blog.BlogID).Error; err != nil {
+	if err := initializers.DB.First(&blog, blogID).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusNotFound, "Blog not found")
 		return
 	}
@@ -108,14 +95,12 @@ func ShowComments(c *gin.Context) {
 		ID        uint      `json:"id"`
 		Comment   string    `json:"comment"`
 		CreatedAt time.Time `json:"created_at"`
-		User      struct {
-			ID   uint   `json:"id"`
-			Name string `json:"name"`
-		} `json:"user"`
+		User_ID   uint      `json:"user_id"`
+		User_Name string    `json:"user_name"`
 	}
 
 	// Fetch comments
-	if err := initializers.DB.Model(&models.Comment{}).Select("comments.id, comments.comment, comments.created_at, users.id as user_id, users.name").Joins("LEFT JOIN users ON comments.user_id =users.id").Where("comments.blog_id = ?", viewed_blog.BlogID).Order("comments.created_at DESC").Scan(&comments).Error; err != nil {
+	if err := initializers.DB.Preload("users").Model(&models.Comment{}).Select("comments.id, comments.comment, comments.created_at, users.id as user_id, users.name as user_name").Joins("LEFT JOIN users ON comments.user_id =users.id").Where("comments.blog_id = ?", blogID).Order("comments.created_at DESC").Scan(&comments).Error; err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Error Loading Comments")
 		return
 	}
@@ -126,15 +111,13 @@ func ShowComments(c *gin.Context) {
 			ID        uint      `json:"id"`
 			Comment   string    `json:"comment"`
 			CreatedAt time.Time `json:"created_at"`
-			User      struct {
-				ID   uint   `json:"id"`
-				Name string `json:"name"`
-			} `json:"user"`
+			User_ID   uint      `json:"user_id"`
+			User_Name string    `json:"user_name"`
 		}{}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"blog_id":  viewed_blog.BlogID,
+		"blog_id":  blogID,
 		"comments": comments,
 		"count":    len(comments),
 	})
