@@ -325,12 +325,12 @@ func PostBlog(c *gin.Context) {
 		return
 	}
 
-	// Save the uploaded file with a unique filename
+	// Save the uploaded file with a unique filename in the uploads directory
 	ext := filepath.Ext(file.Filename)
 	fileName := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext) // Unique file name
-	// filePath := filepath.Join(uploadDir, fileName)             // Save to uploads directory
+	filePath := filepath.Join(uploadDir, fileName)             // Full file path in uploads directory
 
-	if err := c.SaveUploadedFile(file, fileName); err != nil {
+	if err := c.SaveUploadedFile(file, filePath); err != nil {
 		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to save the file")
 		return
 	}
@@ -339,7 +339,7 @@ func PostBlog(c *gin.Context) {
 	blog := models.Blog{
 		Judul:     judul,
 		Content:   content,
-		Thumbnail: fileName,
+		Thumbnail: fileName, // Save only the file name in the database
 		UserID:    uint(userID),
 	}
 
@@ -359,6 +359,7 @@ func PostBlog(c *gin.Context) {
 		},
 	}, "Blog created successfully")
 }
+
 
 // GetBlogByID retrieves a blog post by its ID, including likes and comments.
 func GetBlog(c *gin.Context) {
