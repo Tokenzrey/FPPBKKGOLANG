@@ -318,6 +318,32 @@ func PostBlog(c *gin.Context) {
 		return
 	}
 
+	// Open the uploaded file for mime type validation
+	src, err := file.Open()
+	if err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to open the file")
+		return
+	}
+	defer src.Close()
+
+	// Detect the mime type of the file
+	buffer := make([]byte, 512) // Read the first 512 bytes for mime detection
+	if _, err := src.Read(buffer); err != nil {
+		helpers.ErrorResponse(c, http.StatusInternalServerError, "Failed to read the file")
+		return
+	}
+	mimeType := http.DetectContentType(buffer)
+
+	// Validate the mime type
+	allowedMimeTypes := map[string]bool{
+		"image/jpeg": true,
+		"image/png":  true,
+	}
+	if !allowedMimeTypes[mimeType] {
+		helpers.ErrorResponse(c, http.StatusBadRequest, "Invalid file type. Only JPG, JPEG, and PNG are allowed")
+		return
+	}
+
 	// Create an upload directory if it doesn't exist
 	uploadDir := "./uploads"
 	if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
@@ -359,7 +385,6 @@ func PostBlog(c *gin.Context) {
 		},
 	}, "Blog created successfully")
 }
-
 
 // GetBlogByID retrieves a blog post by its ID, including likes and comments.
 func GetBlog(c *gin.Context) {
